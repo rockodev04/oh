@@ -1,19 +1,18 @@
-import type {User} from "../models/user"
+import type { User } from "../models/user"
 import { createUser, findUserByEmail } from "../repositories/userRepository"
 
-
-export async function register(username: string, email: string, password: string): Promise<User>{
-  if(findUserByEmail(email)){
-  throw new Error('Email register')
+export async function register(username: string, email: string, password: string): Promise<User> {
+  const existing = await findUserByEmail(email)
+  if (existing) {
+    throw new Error('Email already registered')
   }
   const password_hash = await Bun.password.hash(password, "bcrypt")
   return createUser({ username, email, password_hash, membership: "none" })
 }
 
-export async function login(email: string, password: string): Promise<User | null>{
-  const verifyUser = findUserByEmail(email)
-  if(!verifyUser) return null
-  
-  const verifyMagicWord = await Bun.password.verify(password, verifyUser.password_hash, "bcrypt")
-  return verifyMagicWord ? verifyUser : null
+export async function login(email: string, password: string): Promise<User | null> {
+  const user = await findUserByEmail(email)
+  if (!user) return null
+  const valid = await Bun.password.verify(password, user.password_hash, "bcrypt")
+  return valid ? user : null
 }

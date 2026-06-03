@@ -1,55 +1,44 @@
-import { Database } from "bun:sqlite"
-export { streamDB }
+import sql from "../database"
 import type { Stream } from "../models/stream"
 
-const streamDB = new Database(process.env.DATABASE_URL || "magic.db")
-
-streamDB.run(`
-  CREATE TABLE IF NOT EXISTS streams (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    host_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    status TEXT NOT NULL,
-    membership_required TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`)
-
-export function createStream(stream: Stream): Stream {
-  const newStream = streamDB.prepare(`
-  INSERT INTO streams (title, host_id, status, membership_required)
-VALUES ($title, $host_id, $status, $membership_required)
-  `)
-  const result = newStream.run({
-    $title: stream.title,
-    $membership_required: stream.membership_required,
-    $host_id: stream.host_id,
-    $status: stream.status
-  })
-  return { ...stream, id: result.lastInsertRowid as number }
+export async function createStream(stream: Stream): Promise<Stream> {
+  const result = await sql`
+    INSERT INTO streams (host_id, title, status, membership_required)
+    VALUES (${stream.host_id}, ${stream.title}, ${stream.status}, ${stream.membership_required})
+    RETURNING *
+  `
+  return result[0] as unknown as Stream
 }
 
-export function getAllStreams(): Stream[] {
-  const getStream = streamDB.prepare("SELECT * FROM streams")
-  return getStream.all() as Stream[]
+export async function getAllStreams(): Promise<Stream[]> {
+  const result = await sql`SELECT * FROM streams ORDER BY created_at DESC`
+  return result as unknown as Stream[]
 }
 
-export function getActiveStreams(): Stream[] {
-  const streamActive = streamDB.prepare("SELECT * FROM streams WHERE status = 'active'")
-  return streamActive.all() as Stream[]
+export async function getActiveStreams(): Promise<Stream[]> {
+  const result = await sql`SELECT * FROM streams WHERE status = 'active'`
+  return result as unknown as Stream[]
 }
 
-export function findStreamById(id: number): Stream | null {
-  const findStream = streamDB.prepare("SELECT * FROM streams WHERE id = ?")
-  return findStream.get(id) as Stream | null
+export async function findStreamById(id: number): Promise<Stream | null> {
+  const result = await sql`SELECT * FROM streams WHERE id = ${id}`
+  return result.length ? result[0] as unknown as Stream : null
 }
 
-export function updateStreamStatus(id: number, status: "active" | "ended"): void {
-  const updatedStream = streamDB.prepare("UPDATE streams SET status = ? WHERE id = ?")
-  updatedStream.run(status, id)
+export async function updateStreamStatus(id: number, status: "active" | "ended"): Promise<void> {
+  await sql`UPDATE streams SET status = ${status} WHERE id = ${id}`
 }
 
-export function deleteStreamById(id: number): void {
-  const deleteStream = streamDB.prepare("DELETE FROM streams WHERE id = ?")
-  deleteStream.run(id)
+export async function deleteStreamById(id: number): Promise<void> {
+  await sql`DELETE FROM streams WHERE id = ${id}`
+}
+
+export async function updateStream(id: number, title: string, membership_required: string): Promise<Stream | null> {
+  const result = await sql`
+    UPDATE streams
+    SET title = ${title}, membership_required = ${membership_required}
+    WHERE id = ${id}
+    RETURNING *
+  `
+  return result.length ? result[0] as unknown as Stream : null
 }

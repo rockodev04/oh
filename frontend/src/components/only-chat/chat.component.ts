@@ -1,6 +1,23 @@
-import { navigate } from '../../core/router.core'
+import { navigate } from "../../core/router.core"
 
 class OnlyChat extends HTMLElement {
+  private pollingInterval: ReturnType<typeof setInterval> | null = null
+  private activeReceiverId: number = 0
+  private activeChatWith: string = ''
+
+  disconnectedCallback() {
+    if (this.pollingInterval) clearInterval(this.pollingInterval)
+  }
+
+  private async fetchMessages(token: string): Promise<any[]> {
+    const res = await fetch('http://localhost:3001/messages', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const data = await res.json()
+    const msgs = data?.messages
+    return Array.isArray(msgs) ? msgs : []
+  }
+
   async connectedCallback() {
     const token = localStorage.getItem('token')
     if (!token) { navigate('/login'); return }
@@ -52,25 +69,38 @@ class OnlyChat extends HTMLElement {
     await this.loadMessages(token)
     this.setupSend(token)
     this.setupNewChat(token)
+    this.setupPolling(token)
+  }
+
+  setupPolling(token: string) {
+    this.pollingInterval = setInterval(async () => {
+      try {
+        const messages = await this.fetchMessages(token)
+        await this.loadMessages(token)
+
+        if (this.activeReceiverId) {
+          this.showConversation(messages, this.activeReceiverId, this.activeChatWith, token)
+        }
+      } catch (err) {
+        console.error("polling error:", err)
+      }
+    }, 3000)
   }
 
   async loadMessages(token: string) {
     const list = this.querySelector('#conversations-list')!
     try {
-      const res = await fetch('http://localhost:3001/messages', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const data = await res.json() as { messages: any[] }
+      const messages = await this.fetchMessages(token)
 
-      if (!data.messages?.length) {
+      if (!messages.length) {
         list.innerHTML = `<p style="font-size:0.8rem; color:var(--text-muted);">Sin mensajes aún</p>`
         return
       }
 
       const myId = parseInt(localStorage.getItem('userId') ?? '0')
       const conversations = new Map<number, any>()
-      
-      data.messages.forEach((m: any) => {
+
+      messages.forEach((m: any) => {
         const otherId = m.sender_id === myId ? m.receiver_id : m.sender_id
         const otherName = m.sender_id === myId ? `Usuario #${m.receiver_id}` : (m.sender_username ?? `Usuario #${m.sender_id}`)
         if (!conversations.has(otherId)) {
@@ -79,7 +109,8 @@ class OnlyChat extends HTMLElement {
       })
 
       list.innerHTML = Array.from(conversations.values()).map(c => `
-        <div class="card fade-in conversation-item" data-user-id="${c.id}" style="padding:12px; margin-bottom:8px; cursor:pointer;">
+        <div class="card fade-in conversation-item ${c.id === this.activeReceiverId ? 'active' : ''}"
+             data-user-id="${c.id}" style="padding:12px; margin-bottom:8px; cursor:pointer;">
           <p style="font-size:0.8rem; color:var(--accent); font-weight:700;">${c.name}</p>
           <p style="font-size:0.8rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${c.lastMessage}</p>
         </div>
@@ -89,8 +120,12 @@ class OnlyChat extends HTMLElement {
         item.addEventListener('click', () => {
           const userId = parseInt((item as HTMLElement).dataset.userId ?? '0')
           const userName = item.querySelector('p')?.textContent ?? `Usuario #${userId}`
-          this.showConversation(data.messages, userId, userName, token)
-          
+
+          this.activeReceiverId = userId
+          this.activeChatWith = userName
+
+          this.showConversation(messages, userId, userName, token)
+
           const receiverInput = this.querySelector('#receiver-id') as HTMLInputElement
           const msgInput = this.querySelector('#message-input') as HTMLInputElement
           const sendBtn = this.querySelector('#send-btn') as HTMLButtonElement
@@ -158,16 +193,10 @@ class OnlyChat extends HTMLElement {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (res.ok) {
-  const receiverId = parseInt((this.querySelector('#receiver-id') as HTMLInputElement).value)
-  const chatWith = this.querySelector('#chat-with')?.textContent ?? ''
-  await this.loadMessages(token)
-  
-  const allMessages = await fetch('http://localhost:3001/messages', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  }).then(r => r.json()) as { messages: any[] }
-  
-  this.showConversation(allMessages.messages, receiverId, chatWith, token)
-}
+          const messages = await this.fetchMessages(token)
+          await this.loadMessages(token)
+          this.showConversation(messages, this.activeReceiverId, this.activeChatWith, token)
+        }
       })
     })
 
@@ -189,7 +218,6 @@ class OnlyChat extends HTMLElement {
 
     const send = async () => {
       const content = input.value.trim()
-      const receiverId = parseInt((this.querySelector('#receiver-id') as HTMLInputElement).value)
       const editId = input.dataset.editId
 
       if (!content) return
@@ -201,35 +229,28 @@ class OnlyChat extends HTMLElement {
           body: JSON.stringify({ content })
         })
         if (res.ok) {
-  input.value = ''
-  delete input.dataset.editId
-  await this.loadMessages(token)
-  
-  // Reabrir la conversación activa
-  const receiverId = parseInt((this.querySelector('#receiver-id') as HTMLInputElement).value)
-  const chatWith = this.querySelector('#chat-with')?.textContent ?? ''
-  const allMessages = await fetch('http://localhost:3001/messages', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  }).then(r => r.json()) as { messages: any[] }
-  
-  this.showConversation(allMessages.messages, receiverId, chatWith, token)
-}
+          input.value = ''
+          delete input.dataset.editId
+          const messages = await this.fetchMessages(token)
+          await this.loadMessages(token)
+          this.showConversation(messages, this.activeReceiverId, this.activeChatWith, token)
+        }
         return
       }
 
-      if (!receiverId) return
+      if (!this.activeReceiverId) return
 
       const res = await fetch('http://localhost:3001/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ receiver_id: receiverId, content })
+        body: JSON.stringify({ receiver_id: this.activeReceiverId, content })
       })
 
       if (res.ok) {
         input.value = ''
+        const messages = await this.fetchMessages(token)
         await this.loadMessages(token)
-        const container = this.querySelector('#chat-messages')!
-        container.scrollTop = container.scrollHeight
+        this.showConversation(messages, this.activeReceiverId, this.activeChatWith, token)
       }
     }
 
@@ -250,10 +271,13 @@ class OnlyChat extends HTMLElement {
         return
       }
 
+      this.activeReceiverId = receiverId
+      this.activeChatWith = `Usuario #${receiverId}`
+
       const header = this.querySelector('#chat-header') as HTMLElement
       const chatWith = this.querySelector('#chat-with') as HTMLElement
       header.style.display = 'block'
-      chatWith.textContent = `Usuario #${receiverId}`
+      chatWith.textContent = this.activeChatWith
 
       input.disabled = false
       btn.disabled = false

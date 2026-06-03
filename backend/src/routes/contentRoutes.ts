@@ -15,10 +15,10 @@ export async function handleContent(req: Request): Promise<Response>{
   const token = authHeader?.split(" ")[1]
   const payload = await authenticate(token)
   if(!payload) return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401 })
-  
-  const articles = getAllArticles()
+
+  const articles = await getAllArticles()
   const filtered = filterContent(payload.membership, articles)
-  
+
   return new Response(JSON.stringify({ articles: filtered }), {
     status: 200,
     headers: { "Content-Type": "application/json" }

@@ -1,13 +1,13 @@
 import { authenticate } from "../middleware/authMiddleware"
-import { db } from "../repositories/userRepository"
+import sql from "../database"
+import { getAllUsers, deleteUser } from "../repositories/userRepository"
 import type { UserRow } from "../models/admin"
 
-function isAdmin(token: string | undefined): Promise<boolean> {
-  return authenticate(token).then(payload => {
-    if (!payload) return false
-    const user = db.prepare("SELECT role FROM users WHERE id = ?").get(payload.userId) as { role: string } | null
-    return user?.role === 'admin'
-  })
+async function isAdmin(token: string | undefined): Promise<boolean> {
+  const payload = await authenticate(token)
+  if (!payload) return false
+  const result = await sql`SELECT role FROM users WHERE id = ${payload.userId}`
+  return result[0]?.role === 'admin'
 }
 
 async function getAdminId(token: string | undefined): Promise<number | null> {
@@ -23,7 +23,7 @@ export async function handleGetUsers(req: Request): Promise<Response> {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
   }
 
-  const users = db.prepare("SELECT id, username, email, membership, role FROM users").all() as UserRow[]
+  const users = await getAllUsers()
   return new Response(JSON.stringify({ users }), {
     status: 200,
     headers: { "Content-Type": "application/json" }
@@ -44,7 +44,7 @@ export async function handleUpdateUserRole(req: Request, userId: number): Promis
     return new Response(JSON.stringify({ error: "Invalid role" }), { status: 400 })
   }
 
-  db.prepare("UPDATE users SET role = ? WHERE id = ?").run(body.role, userId)
+  await sql`UPDATE users SET role = ${body.role} WHERE id = ${userId}`
 
   return new Response(JSON.stringify({ message: "Role updated" }), {
     status: 200,
@@ -65,12 +65,12 @@ export async function handleDeleteUser(req: Request, userId: number): Promise<Re
     return new Response(JSON.stringify({ error: "No puedes eliminarte a ti mismo" }), { status: 403 })
   }
 
-  const user = db.prepare("SELECT id FROM users WHERE id = ?").get(userId) as { id: number } | null
-  if (!user) {
+  const result = await sql`SELECT id FROM users WHERE id = ${userId}`
+  if (!result.length) {
     return new Response(JSON.stringify({ error: "Usuario no encontrado" }), { status: 404 })
   }
 
-  db.prepare("DELETE FROM users WHERE id = ?").run(userId)
+  await deleteUser(userId)
 
   return new Response(JSON.stringify({ message: "Usuario eliminado correctamente" }), {
     status: 200,
@@ -86,12 +86,21 @@ export async function handleGetStats(req: Request): Promise<Response> {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
   }
 
-  const totalUsers = (db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number }).count
-  const totalArticles = (db.prepare("SELECT COUNT(*) as count FROM articles").get() as { count: number }).count
-  const totalStaff = (db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'staff'").get() as { count: number }).count
-  const totalStreams = (db.prepare("SELECT COUNT(*) as count FROM streams").get() as { count: number }).count
-  const membershipGameboy = (db.prepare("SELECT COUNT(*) as count FROM users WHERE membership = 'gameboy'").get() as { count: number }).count
-  const membershipPlayboy = (db.prepare("SELECT COUNT(*) as count FROM users WHERE membership = 'playboy'").get() as { count: number }).count
+  const [users, articles, staff, streams, gameboy, playboy] = await Promise.all([
+    sql`SELECT COUNT(*) AS count FROM users`,
+    sql`SELECT COUNT(*) AS count FROM articles`,
+    sql`SELECT COUNT(*) AS count FROM users WHERE role = 'staff'`,
+    sql`SELECT COUNT(*) AS count FROM streams`,
+    sql`SELECT COUNT(*) AS count FROM users WHERE membership = 'gameboy'`,
+    sql`SELECT COUNT(*) AS count FROM users WHERE membership = 'playboy'`
+  ])
+
+  const totalUsers = parseInt(users[0]?.count)
+  const totalArticles = parseInt(articles[0]?.count)
+  const totalStaff = parseInt(staff[0]?.count)
+  const totalStreams = parseInt(streams[0]?.count)
+  const membershipGameboy = parseInt(gameboy[0]?.count)
+  const membershipPlayboy = parseInt(playboy[0]?.count)
 
   return new Response(JSON.stringify({
     stats: {

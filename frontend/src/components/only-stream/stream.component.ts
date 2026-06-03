@@ -20,7 +20,7 @@ class OnlyStream extends HTMLElement {
 
         <div id="stream-alert" class="alert" style="display:none;"></div>
 
-        <div id="host-panel" style="display:none;" class="card fade-in" style="margin-bottom:24px;">
+        <div id="host-panel" style="display:none;" class="card fade-in">
           <h3 style="margin-bottom:16px;">Tu transmisión</h3>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <video id="local-video" autoplay muted playsinline
@@ -59,6 +59,9 @@ class OnlyStream extends HTMLElement {
 
   async loadStreams(token: string) {
     const container = this.querySelector('#active-streams')!
+    const role = localStorage.getItem('role') ?? 'none'
+    const isStaff = role === 'staff' || role === 'admin'
+
     try {
       const res = await fetch('http://localhost:3001/streams/active', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -84,8 +87,39 @@ class OnlyStream extends HTMLElement {
                 Membresía requerida: <span class="membership-${s.membership_required}">${s.membership_required}</span>
               </p>
             </div>
-            <button class="btn btn-primary btn-sm join-btn" data-id="${s.id}">Unirse</button>
+            <div style="display:flex; gap:8px; align-items:center;">
+              ${isStaff ? `
+                <button class="btn btn-secondary btn-sm edit-stream-btn"
+                  data-id="${s.id}" data-title="${s.title}" data-membership="${s.membership_required}">
+                  ✏️ Editar
+                </button>
+                <button class="btn btn-danger btn-sm delete-stream-btn" data-id="${s.id}">
+                  🗑️ Eliminar
+                </button>
+              ` : ''}
+              <button class="btn btn-primary btn-sm join-btn" data-id="${s.id}">Unirse</button>
+            </div>
           </div>
+
+          <div id="edit-form-${s.id}" style="display:none;" class="fade-in">
+            <div class="form-group">
+              <label class="form-label">Título</label>
+              <input class="form-input edit-title" value="${s.title}" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Membresía requerida</label>
+              <select class="form-input edit-membership">
+                <option value="none" ${s.membership_required === 'none' ? 'selected' : ''}>Pública</option>
+                <option value="gameboy" ${s.membership_required === 'gameboy' ? 'selected' : ''}>Gameboy</option>
+                <option value="playboy" ${s.membership_required === 'playboy' ? 'selected' : ''}>Playboy</option>
+              </select>
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom:16px;">
+              <button class="btn btn-primary btn-sm save-edit-btn" data-id="${s.id}">Guardar</button>
+              <button class="btn btn-secondary btn-sm cancel-edit-btn" data-id="${s.id}">Cancelar</button>
+            </div>
+          </div>
+
           <video id="remote-video-${s.id}" autoplay playsinline
             style="width:100%; border-radius:12px; background:#000; aspect-ratio:16/9; display:none;">
           </video>
@@ -95,6 +129,7 @@ class OnlyStream extends HTMLElement {
         </div>
       `).join('')
 
+      // Join
       this.querySelectorAll('.join-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const id = parseInt((btn as HTMLElement).dataset.id ?? '0')
@@ -110,6 +145,67 @@ class OnlyStream extends HTMLElement {
           } else {
             const data = await res.json() as { error: string }
             alert(data.error ?? 'No tienes acceso a esta transmisión')
+          }
+        })
+      })
+
+      // Mostrar/ocultar formulario de edición
+      this.querySelectorAll('.edit-stream-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = (btn as HTMLElement).dataset.id
+          const form = this.querySelector(`#edit-form-${id}`) as HTMLElement
+          form.style.display = form.style.display === 'none' ? 'block' : 'none'
+        })
+      })
+
+      // Cancelar edición
+      this.querySelectorAll('.cancel-edit-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = (btn as HTMLElement).dataset.id
+          const form = this.querySelector(`#edit-form-${id}`) as HTMLElement
+          form.style.display = 'none'
+        })
+      })
+
+      // Guardar edición
+      this.querySelectorAll('.save-edit-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = (btn as HTMLElement).dataset.id
+          const form = this.querySelector(`#edit-form-${id}`) as HTMLElement
+          const title = (form.querySelector('.edit-title') as HTMLInputElement).value.trim()
+          const membership_required = (form.querySelector('.edit-membership') as HTMLSelectElement).value
+
+          if (!title) { alert('El título no puede estar vacío'); return }
+
+          const res = await fetch(`http://localhost:3001/streams/${id}/update`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ title, membership_required })
+          })
+
+          if (res.ok) {
+            await this.loadStreams(token)
+          } else {
+            alert('Error al actualizar la transmisión')
+          }
+        })
+      })
+
+      // Eliminar
+      this.querySelectorAll('.delete-stream-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = (btn as HTMLElement).dataset.id
+          if (!confirm('¿Eliminar esta transmisión?')) return
+
+          const res = await fetch(`http://localhost:3001/streams/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+
+          if (res.ok) {
+            await this.loadStreams(token)
+          } else {
+            alert('Error al eliminar la transmisión')
           }
         })
       })
@@ -196,7 +292,7 @@ class OnlyStream extends HTMLElement {
       }
 
       const localVideo = this.querySelector('#local-video') as HTMLVideoElement
-      localVideo.srcObject = this.localStream
+      localVideo.srcObject = this.localStream as MediaStream
 
       const stopBtn = this.querySelector('#stop-stream-btn') as HTMLElement
       stopBtn.style.display = 'block'
@@ -269,7 +365,7 @@ class OnlyStream extends HTMLElement {
       const remoteVideo = this.querySelector(`#remote-video-${streamId}`) as HTMLVideoElement
       const status = this.querySelector(`#viewer-status-${streamId}`) as HTMLElement
       if (remoteVideo) {
-        remoteVideo.srcObject = event.streams[0]
+        remoteVideo.srcObject = event.streams[0] ?? null
         if (status) status.style.display = 'none'
       }
     }
