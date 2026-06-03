@@ -611,6 +611,21 @@ if (!customElements.get("only-article")) {
 
 // src/components/only-chat/chat.component.ts
 class OnlyChat extends HTMLElement {
+  pollingInterval = null;
+  activeReceiverId = 0;
+  activeChatWith = "";
+  disconnectedCallback() {
+    if (this.pollingInterval)
+      clearInterval(this.pollingInterval);
+  }
+  async fetchMessages(token) {
+    const res = await fetch("http://localhost:3001/messages", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    const msgs = data?.messages;
+    return Array.isArray(msgs) ? msgs : [];
+  }
   async connectedCallback() {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -663,21 +678,32 @@ class OnlyChat extends HTMLElement {
     await this.loadMessages(token);
     this.setupSend(token);
     this.setupNewChat(token);
+    this.setupPolling(token);
+  }
+  setupPolling(token) {
+    this.pollingInterval = setInterval(async () => {
+      try {
+        const messages = await this.fetchMessages(token);
+        await this.loadMessages(token);
+        if (this.activeReceiverId) {
+          this.showConversation(messages, this.activeReceiverId, this.activeChatWith, token);
+        }
+      } catch (err) {
+        console.error("polling error:", err);
+      }
+    }, 3000);
   }
   async loadMessages(token) {
     const list = this.querySelector("#conversations-list");
     try {
-      const res = await fetch("http://localhost:3001/messages", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (!data.messages?.length) {
+      const messages = await this.fetchMessages(token);
+      if (!messages.length) {
         list.innerHTML = `<p style="font-size:0.8rem; color:var(--text-muted);">Sin mensajes aún</p>`;
         return;
       }
       const myId = parseInt(localStorage.getItem("userId") ?? "0");
       const conversations = new Map;
-      data.messages.forEach((m) => {
+      messages.forEach((m) => {
         const otherId = m.sender_id === myId ? m.receiver_id : m.sender_id;
         const otherName = m.sender_id === myId ? `Usuario #${m.receiver_id}` : m.sender_username ?? `Usuario #${m.sender_id}`;
         if (!conversations.has(otherId)) {
@@ -685,7 +711,8 @@ class OnlyChat extends HTMLElement {
         }
       });
       list.innerHTML = Array.from(conversations.values()).map((c) => `
-        <div class="card fade-in conversation-item" data-user-id="${c.id}" style="padding:12px; margin-bottom:8px; cursor:pointer;">
+        <div class="card fade-in conversation-item ${c.id === this.activeReceiverId ? "active" : ""}"
+             data-user-id="${c.id}" style="padding:12px; margin-bottom:8px; cursor:pointer;">
           <p style="font-size:0.8rem; color:var(--accent); font-weight:700;">${c.name}</p>
           <p style="font-size:0.8rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${c.lastMessage}</p>
         </div>
@@ -694,7 +721,9 @@ class OnlyChat extends HTMLElement {
         item.addEventListener("click", () => {
           const userId = parseInt(item.dataset.userId ?? "0");
           const userName = item.querySelector("p")?.textContent ?? `Usuario #${userId}`;
-          this.showConversation(data.messages, userId, userName, token);
+          this.activeReceiverId = userId;
+          this.activeChatWith = userName;
+          this.showConversation(messages, userId, userName, token);
           const receiverInput = this.querySelector("#receiver-id");
           const msgInput = this.querySelector("#message-input");
           const sendBtn = this.querySelector("#send-btn");
@@ -751,13 +780,9 @@ class OnlyChat extends HTMLElement {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
-          const receiverId = parseInt(this.querySelector("#receiver-id").value);
-          const chatWith = this.querySelector("#chat-with")?.textContent ?? "";
+          const messages2 = await this.fetchMessages(token);
           await this.loadMessages(token);
-          const allMessages = await fetch("http://localhost:3001/messages", {
-            headers: { Authorization: `Bearer ${token}` }
-          }).then((r) => r.json());
-          this.showConversation(allMessages.messages, receiverId, chatWith, token);
+          this.showConversation(messages2, this.activeReceiverId, this.activeChatWith, token);
         }
       });
     });
@@ -777,7 +802,6 @@ class OnlyChat extends HTMLElement {
     const btn = this.querySelector("#send-btn");
     const send = async () => {
       const content = input.value.trim();
-      const receiverId = parseInt(this.querySelector("#receiver-id").value);
       const editId = input.dataset.editId;
       if (!content)
         return;
@@ -790,28 +814,24 @@ class OnlyChat extends HTMLElement {
         if (res2.ok) {
           input.value = "";
           delete input.dataset.editId;
+          const messages = await this.fetchMessages(token);
           await this.loadMessages(token);
-          const receiverId2 = parseInt(this.querySelector("#receiver-id").value);
-          const chatWith = this.querySelector("#chat-with")?.textContent ?? "";
-          const allMessages = await fetch("http://localhost:3001/messages", {
-            headers: { Authorization: `Bearer ${token}` }
-          }).then((r) => r.json());
-          this.showConversation(allMessages.messages, receiverId2, chatWith, token);
+          this.showConversation(messages, this.activeReceiverId, this.activeChatWith, token);
         }
         return;
       }
-      if (!receiverId)
+      if (!this.activeReceiverId)
         return;
       const res = await fetch("http://localhost:3001/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ receiver_id: receiverId, content })
+        body: JSON.stringify({ receiver_id: this.activeReceiverId, content })
       });
       if (res.ok) {
         input.value = "";
+        const messages = await this.fetchMessages(token);
         await this.loadMessages(token);
-        const container = this.querySelector("#chat-messages");
-        container.scrollTop = container.scrollHeight;
+        this.showConversation(messages, this.activeReceiverId, this.activeChatWith, token);
       }
     };
     btn.addEventListener("click", send);
@@ -829,10 +849,12 @@ class OnlyChat extends HTMLElement {
         alert("Escribe el ID del usuario primero");
         return;
       }
+      this.activeReceiverId = receiverId;
+      this.activeChatWith = `Usuario #${receiverId}`;
       const header = this.querySelector("#chat-header");
       const chatWith = this.querySelector("#chat-with");
       header.style.display = "block";
-      chatWith.textContent = `Usuario #${receiverId}`;
+      chatWith.textContent = this.activeChatWith;
       input.disabled = false;
       btn.disabled = false;
       input.focus();
@@ -988,7 +1010,7 @@ class OnlyStream extends HTMLElement {
 
         <div id="stream-alert" class="alert" style="display:none;"></div>
 
-        <div id="host-panel" style="display:none;" class="card fade-in" style="margin-bottom:24px;">
+        <div id="host-panel" style="display:none;" class="card fade-in">
           <h3 style="margin-bottom:16px;">Tu transmisión</h3>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <video id="local-video" autoplay muted playsinline
@@ -1024,6 +1046,8 @@ class OnlyStream extends HTMLElement {
   }
   async loadStreams(token) {
     const container = this.querySelector("#active-streams");
+    const role = localStorage.getItem("role") ?? "none";
+    const isStaff = role === "staff" || role === "admin";
     try {
       const res = await fetch("http://localhost:3001/streams/active", {
         headers: { Authorization: `Bearer ${token}` }
@@ -1047,8 +1071,39 @@ class OnlyStream extends HTMLElement {
                 Membresía requerida: <span class="membership-${s.membership_required}">${s.membership_required}</span>
               </p>
             </div>
-            <button class="btn btn-primary btn-sm join-btn" data-id="${s.id}">Unirse</button>
+            <div style="display:flex; gap:8px; align-items:center;">
+              ${isStaff ? `
+                <button class="btn btn-secondary btn-sm edit-stream-btn"
+                  data-id="${s.id}" data-title="${s.title}" data-membership="${s.membership_required}">
+                  ✏️ Editar
+                </button>
+                <button class="btn btn-danger btn-sm delete-stream-btn" data-id="${s.id}">
+                  \uD83D\uDDD1️ Eliminar
+                </button>
+              ` : ""}
+              <button class="btn btn-primary btn-sm join-btn" data-id="${s.id}">Unirse</button>
+            </div>
           </div>
+
+          <div id="edit-form-${s.id}" style="display:none;" class="fade-in">
+            <div class="form-group">
+              <label class="form-label">Título</label>
+              <input class="form-input edit-title" value="${s.title}" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Membresía requerida</label>
+              <select class="form-input edit-membership">
+                <option value="none" ${s.membership_required === "none" ? "selected" : ""}>Pública</option>
+                <option value="gameboy" ${s.membership_required === "gameboy" ? "selected" : ""}>Gameboy</option>
+                <option value="playboy" ${s.membership_required === "playboy" ? "selected" : ""}>Playboy</option>
+              </select>
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom:16px;">
+              <button class="btn btn-primary btn-sm save-edit-btn" data-id="${s.id}">Guardar</button>
+              <button class="btn btn-secondary btn-sm cancel-edit-btn" data-id="${s.id}">Cancelar</button>
+            </div>
+          </div>
+
           <video id="remote-video-${s.id}" autoplay playsinline
             style="width:100%; border-radius:12px; background:#000; aspect-ratio:16/9; display:none;">
           </video>
@@ -1072,6 +1127,58 @@ class OnlyStream extends HTMLElement {
           } else {
             const data2 = await res2.json();
             alert(data2.error ?? "No tienes acceso a esta transmisión");
+          }
+        });
+      });
+      this.querySelectorAll(".edit-stream-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.dataset.id;
+          const form = this.querySelector(`#edit-form-${id}`);
+          form.style.display = form.style.display === "none" ? "block" : "none";
+        });
+      });
+      this.querySelectorAll(".cancel-edit-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.dataset.id;
+          const form = this.querySelector(`#edit-form-${id}`);
+          form.style.display = "none";
+        });
+      });
+      this.querySelectorAll(".save-edit-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.dataset.id;
+          const form = this.querySelector(`#edit-form-${id}`);
+          const title = form.querySelector(".edit-title").value.trim();
+          const membership_required = form.querySelector(".edit-membership").value;
+          if (!title) {
+            alert("El título no puede estar vacío");
+            return;
+          }
+          const res2 = await fetch(`http://localhost:3001/streams/${id}/update`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ title, membership_required })
+          });
+          if (res2.ok) {
+            await this.loadStreams(token);
+          } else {
+            alert("Error al actualizar la transmisión");
+          }
+        });
+      });
+      this.querySelectorAll(".delete-stream-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.dataset.id;
+          if (!confirm("¿Eliminar esta transmisión?"))
+            return;
+          const res2 = await fetch(`http://localhost:3001/streams/${id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res2.ok) {
+            await this.loadStreams(token);
+          } else {
+            alert("Error al eliminar la transmisión");
           }
         });
       });
@@ -1218,7 +1325,7 @@ class OnlyStream extends HTMLElement {
       const remoteVideo = this.querySelector(`#remote-video-${streamId}`);
       const status = this.querySelector(`#viewer-status-${streamId}`);
       if (remoteVideo) {
-        remoteVideo.srcObject = event.streams[0];
+        remoteVideo.srcObject = event.streams[0] ?? null;
         if (status)
           status.style.display = "none";
       }

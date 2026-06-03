@@ -12,7 +12,7 @@ import { handleGetProducts, handleCreateProduct } from "./routes/productRoutes"
 import { handleAddToCart, handleGetCart, handleRemoveFromCart } from "./routes/cartRoutes"
 import { handleProcessOrder, handleGetOrders } from "./routes/orderRoutes"
 import { handleSendMessage, handleGetMessages, handleDeleteMessage, handleUpdateMessage } from "./routes/messageRoutes"
-import { handleCreateStream, handleJoinStream, handleGetActiveStreams, handleEndStream } from "./routes/streamRoutes"
+import { handleCreateStream, handleJoinStream, handleGetActiveStreams, handleEndStream, handleUpdateStream,handleDeleteStream} from "./routes/streamRoutes"
 import { handleUpdateUsername, handleChangePassword } from "./routes/profileRoutes"
 import { handleGetUsers, handleUpdateUserRole, handleGetStats, handleDeleteUser } from "./routes/adminRoutes"
 
@@ -42,7 +42,7 @@ async function handleRoute(req: Request, url: URL): Promise<Response> {
 
   // Me
   if (path === "/me" && method === "GET") return handleMe(req)
-  
+
   //Update nickname and password
   if (path === "/profile/username" && method === "PATCH") return handleUpdateUsername(req)
   if (path === "/profile/password" && method === "PATCH") return handleChangePassword(req)
@@ -123,6 +123,11 @@ async function handleRoute(req: Request, url: URL): Promise<Response> {
     return handleEndStream(req, parseInt(segments[1]))
   }
 
+  // Streams — agrega esta línea junto a las demás de streams
+  if (segments[0] === "streams" && segments[1] && segments[2] === "update" && method === "PATCH") {
+    return handleUpdateStream(req, parseInt(segments[1]))
+  }
+
   // Admin
   if (path === "/admin/stats" && method === "GET") return handleGetStats(req)
   if (path === "/admin/users" && method === "GET") return handleGetUsers(req)
@@ -171,7 +176,7 @@ Bun.serve({
   websocket: {
     message(ws, message) {
       const data = JSON.parse(message as string)
-      
+
       switch(data.type) {
         case 'join':
           ws.subscribe(data.streamId)

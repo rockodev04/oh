@@ -1,39 +1,25 @@
-import { Database } from "bun:sqlite"
+import sql from "../database"
 import type { CartItem } from "../models/cart"
 
-export const cartDb = new Database(process.env.DATABASE_URL || "magic.db")
-
-cartDb.run(`
-  CREATE TABLE IF NOT EXISTS carts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    product_id INTEGER NOT NULL,
-    quantity INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, product_id)
-  )
-`)
-
-
-export function addToCart(cart: CartItem): CartItem {
-  const addNewCart = cartDb.prepare(
-    "INSERT OR IGNORE INTO carts (product_id, user_id,quantity) VALUES (?, ?,?)"
-  )
-  const result = addNewCart.run(cart.product_id, cart.user_id, cart.quantity)
-  return { ...cart, id: result.lastInsertRowid as number }
+export async function addToCart(cart: CartItem): Promise<CartItem> {
+  const result = await sql`
+    INSERT INTO carts (user_id, product_id, quantity)
+    VALUES (${cart.user_id}, ${cart.product_id}, ${cart.quantity})
+    ON CONFLICT (user_id, product_id) DO UPDATE SET quantity = carts.quantity + ${cart.quantity}
+    RETURNING *
+  `
+  return result[0] as unknown as CartItem
 }
 
-export function getCartByUserId(user_id: number): CartItem[] {
-  const getProducts = cartDb.prepare("SELECT * FROM carts WHERE user_id = ?")
-  return getProducts.all(user_id) as CartItem[]
+export async function removeFromCart(id: number): Promise<void> {
+  await sql`DELETE FROM carts WHERE id = ${id}`
 }
 
-export function removeFromCart(id: number): void {
-  const deleteCart = cartDb.prepare("DELETE FROM carts WHERE id = ?")
-  deleteCart.run(id)
+export async function getCartByUserId(user_id: number): Promise<CartItem[]> {
+  const result = await sql`SELECT * FROM carts WHERE user_id = ${user_id}`
+  return result as unknown as CartItem[]
 }
 
-export function clearCart(user_id: number): void {
-  const cleanedCart = cartDb.prepare("DELETE FROM carts WHERE user_id = ?")
-  cleanedCart.run(user_id)
+export async function clearCart(user_id: number): Promise<void> {
+  await sql`DELETE FROM carts WHERE user_id = ${user_id}`
 }

@@ -13,6 +13,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "postgres": "^3.4.9",
     "sqlite": "^5.1.1"
   }
 }
