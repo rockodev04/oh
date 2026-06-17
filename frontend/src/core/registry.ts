@@ -9,6 +9,7 @@ export const magicRegistry: Record<string, string[]> = {
     "article-id"
   ],
   "only-login": [],
+  "only-error": [],
   "only-store": [],
   "only-chat": [],
   "only-stream": [],

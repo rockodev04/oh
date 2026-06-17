@@ -1,10 +1,19 @@
 import { watch } from 'fs';
 import path from 'path';
-
 const fs = require('fs');
+
 const isProduction = Bun.argv.includes('--prod');
 const outputDir = 'calvaria';
 const port = 3000;
+
+const SYSTEM_ROUTES = new Set([
+  '/favicon.ico',
+  '/apple-touch-icon.png',
+  '/apple-touch-icon-precomposed.png',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/.well-known/appspecific/com.chrome.devtools.json',
+])
 
 const cleanOutput = () => {
   if (fs.existsSync(outputDir)) {
@@ -34,11 +43,9 @@ const copyStaticAssets = () => {
   copyFolder('./src/images', `${outputDir}/images`);
 };
 
-// ── Auto-genera el registro de componentes ──
 const generateRegistry = () => {
   const componentDirs = fs.readdirSync('./src/components') as string[];
 
-  // Atributos requeridos conocidos por componente
   const knownRequiredAttrs: Record<string, string[]> = {
     'only-article': ['article-id'],
     'magic-card': ['image', 'title'],
@@ -60,7 +67,6 @@ export const magicRegistry: Record<string, string[]> = ${JSON.stringify(registry
 }
 
 const buildMagic = async () => {
-  // Genera el registry antes de compilar
   generateRegistry()
 
   const entrypoints = [
@@ -94,7 +100,6 @@ const startWatcher = () => {
       console.warn('🧐 fs.watch triggered but no filename was provided.')
       return
     }
-
     if (
       filename.endsWith('.ts') ||
       filename.endsWith('.html') ||
@@ -104,7 +109,6 @@ const startWatcher = () => {
       await buildMagic()
     }
   })
-
   console.log('👁 fs.watch is running and listening for changes...')
 }
 
@@ -114,28 +118,25 @@ const startServer = () => {
     async fetch(req) {
       const url = new URL(req.url)
 
-      if (url.pathname === '/favicon.ico' || url.pathname.startsWith('/.well-known')) {
+      if (SYSTEM_ROUTES.has(url.pathname) || url.pathname.startsWith('/.well-known')) {
         return new Response(null, { status: 204 })
       }
 
-      let pathName = `${outputDir}${url.pathname}`
-
       if (url.pathname.includes('.')) {
-        try {
-          return new Response(Bun.file(pathName))
-        } catch {
-          return new Response('404 Not Found', { status: 404 })
+        const filePath = `${outputDir}${url.pathname}`
+        const file = Bun.file(filePath)
+        if (await file.exists()) {
+          return new Response(file)
         }
+        return new Response('Not Found', { status: 404 })
       }
 
       return new Response(Bun.file(`${outputDir}/index.html`))
     }
   })
-
   console.log(`🧙 MAGIC Nexus running at http://localhost:${port} (${isProduction ? 'PROD' : 'DEV'})`)
 }
 
-// 🚀 Run everything
 cleanOutput()
 await buildMagic()
 if (!isProduction) startWatcher()
