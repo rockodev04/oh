@@ -10,6 +10,7 @@ import "../components/only-store/store.component"
 import "../components/only-stream/stream.component"
 import "../components/only-profile/profile.component"
 import "../components/only-admin/admin.component"
+import "../components/only-error/error.component"
 
 
 registerRoute("/", "only-home")

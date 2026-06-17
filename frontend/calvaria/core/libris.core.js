@@ -6,6 +6,7 @@ var magicRegistry = {
     "article-id"
   ],
   "only-login": [],
+  "only-error": [],
   "only-store": [],
   "only-chat": [],
   "only-stream": [],
