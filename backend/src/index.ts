@@ -3,12 +3,12 @@ import { honeypotMiddleware } from "./middleware/honeypotMiddleware"
 import { rateLimitMiddleware } from "./middleware/rateLimitMiddleware"
 import { handleRegister, handleLogin } from "./routes/authRoutes"
 import { handleMe, handleContent } from "./routes/contentRoutes"
-import { handleCreateArticle, handleGetArticles, handleDeleteArticle } from "./routes/articleRoutes"
+import { handleCreateArticle, handleGetArticles, handleUpdateArticle, handleDeleteArticle } from "./routes/articleRoutes"
 import { handleAssignMembership, handleGetMembership, handleCancelMembership } from "./routes/membershipRoutes"
 import { handleCreateComment, handleGetComments, handleDeleteComment, handleUpdateComment } from "./routes/commentRoutes"
 import { handleAddLike, handleRemoveLike, handleCountLikes } from "./routes/likeRoutes"
 import { handleCreatePayment } from "./routes/paymentRoutes"
-import { handleGetProducts, handleCreateProduct } from "./routes/productRoutes"
+import { handleGetProducts, handleCreateProduct, handleUpdateProduct, handleDeleteProducts } from "./routes/productRoutes"
 import { handleAddToCart, handleGetCart, handleRemoveFromCart } from "./routes/cartRoutes"
 import { handleProcessOrder, handleGetOrders } from "./routes/orderRoutes"
 import { handleSendMessage, handleGetMessages, handleDeleteMessage, handleUpdateMessage } from "./routes/messageRoutes"
@@ -53,6 +53,9 @@ async function handleRoute(req: Request, url: URL): Promise<Response> {
   // Articles
   if (path === "/articles" && method === "GET") return handleGetArticles(req)
   if (path === "/articles" && method === "POST") return handleCreateArticle(req)
+  if (segments[0] === "articles" && segments[1] && method === "PATCH") {
+    return handleUpdateArticle(req, parseInt(segments[1]))
+  }
   if (segments[0] === "articles" && segments[1] && method === "DELETE") {
     return handleDeleteArticle(req, parseInt(segments[1]))
   }
@@ -91,6 +94,12 @@ async function handleRoute(req: Request, url: URL): Promise<Response> {
   // Products
   if (path === "/products" && method === "GET") return handleGetProducts(req)
   if (path === "/products" && method === "POST") return handleCreateProduct(req)
+  if (segments[0] === "products" && segments[1] && method === "PATCH") {
+    return handleUpdateProduct(req, parseInt(segments[1]))
+  }
+  if (segments[0] === "products" && segments[1] && method === "DELETE") {
+    return handleDeleteProducts(req, parseInt(segments[1]))
+  }
 
   // Cart
   if (path === "/cart" && method === "POST") return handleAddToCart(req)
@@ -123,9 +132,12 @@ async function handleRoute(req: Request, url: URL): Promise<Response> {
     return handleEndStream(req, parseInt(segments[1]))
   }
 
-  // Streams — agrega esta línea junto a las demás de streams
   if (segments[0] === "streams" && segments[1] && segments[2] === "update" && method === "PATCH") {
     return handleUpdateStream(req, parseInt(segments[1]))
+  }
+
+  if (segments[0] === "streams" && segments[1] && !segments[2] && method === "DELETE") {
+    return handleDeleteStream(req, parseInt(segments[1]))
   }
 
   // Admin

@@ -1,5 +1,5 @@
 import { authenticate } from "../middleware/authMiddleware"
-import { createArticle, getAllArticles, findArticleById, deleteArticleById } from "../repositories/articleRepository"
+import { createArticle, getAllArticles, findArticleById, deleteArticleById, updateArticle } from "../repositories/articleRepository"
 import { getUserRole } from "../repositories/userRepository"
 
 export async function handleCreateArticle(req: Request): Promise<Response> {
@@ -35,6 +35,26 @@ export async function handleGetArticles(req: Request): Promise<Response> {
     status: 200,
     headers: { "Content-Type": "application/json" }
   })
+}
+
+export async function handleUpdateArticle(req: Request, id: number): Promise<Response> {
+  const authHeader = req.headers.get("Authorization")
+  const token = authHeader?.split(" ")[1]
+  const payload = await authenticate(token)
+  if (!payload) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+
+  const role = await getUserRole(payload.userId)
+  if (role !== 'staff' && role !== 'admin') {
+    return new Response(JSON.stringify({ error: "Solo el staff puede editar artículos" }), { status: 403 })
+  }
+
+  const article = await findArticleById(id)
+  if (!article) return new Response(JSON.stringify({ error: "Article not found" }), { status: 404 })
+
+  const body = await req.json() as { title: string, contentType: "public" | "creator" | "tips", body: string }
+  const updated = await updateArticle(id, body)
+
+  return new Response(JSON.stringify(updated), { status: 200 })
 }
 
 export async function handleDeleteArticle(req: Request, id: number): Promise<Response> {

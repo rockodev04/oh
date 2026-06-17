@@ -20,6 +20,16 @@ export async function findProductById(id: number): Promise<Product | null> {
   return result.length ? result[0] as unknown as Product : null
 }
 
+export async function updateProduct(id: number, data: { name: string, description: string, price: number, stock: number }): Promise<Product | null> {
+  const result = await sql`
+    UPDATE products
+    SET name = ${data.name}, description = ${data.description}, price = ${data.price}, stock = ${data.stock}
+    WHERE id = ${id}
+    RETURNING *
+  `
+  return result.length ? result[0] as unknown as Product : null
+}
+
 export async function deleteProductById(id: number): Promise<void> {
   await sql`DELETE FROM products WHERE id = ${id}`
 }

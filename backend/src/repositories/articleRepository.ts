@@ -1,7 +1,5 @@
 import sql from "../database"
-import type {Article} from "../models/article"
-
-
+import type { Article } from "../models/article"
 
 export async function createArticle(article: Article): Promise<Article> {
   const result = await sql`
@@ -24,6 +22,16 @@ export async function findArticleById(id: number): Promise<Article | null> {
   const result = await sql`
     SELECT id, title, content_type AS "contentType", body, created_by, created_at
     FROM articles WHERE id = ${id}
+  `
+  return result.length ? result[0] as unknown as Article : null
+}
+
+export async function updateArticle(id: number, data: { title: string, contentType: "public" | "creator" | "tips", body: string }): Promise<Article | null> {
+  const result = await sql`
+    UPDATE articles
+    SET title = ${data.title}, content_type = ${data.contentType}, body = ${data.body}
+    WHERE id = ${id}
+    RETURNING id, title, content_type AS "contentType", body, created_by, created_at
   `
   return result.length ? result[0] as unknown as Article : null
 }
