@@ -1,6 +1,6 @@
 /* ============================================
    ONLYHACKERS — Base Styles
-   Fondo: #313638 | Componentes: #E6E6FA
+   Background: #313638 | Components: #E6E6FA
    ============================================ */
 
 /* ── Variables ── */
@@ -105,7 +105,7 @@ a {
 }
 
 a:hover {
-  color: var(--surface);
+  color: var(--accent);
 }
 
 code,

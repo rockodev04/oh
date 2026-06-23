@@ -3,18 +3,18 @@
 // No editar manualmente. Se regenera en cada build.
 // ============================================
 export const magicRegistry: Record<string, string[]> = {
-  "only-feed": [],
-  "only-profile": [],
+  "only-admin": [],
   "only-article": [
     "article-id"
   ],
-  "only-login": [],
-  "only-error": [],
-  "only-store": [],
   "only-chat": [],
-  "only-stream": [],
+  "only-error": [],
+  "only-feed": [],
   "only-home": [],
-  "only-register": [],
+  "only-login": [],
   "only-navbar": [],
-  "only-admin": []
+  "only-profile": [],
+  "only-register": [],
+  "only-store": [],
+  "only-stream": []
 }

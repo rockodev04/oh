@@ -1,19 +1,19 @@
 // src/core/registry.ts
 var magicRegistry = {
-  "only-feed": [],
-  "only-profile": [],
+  "only-admin": [],
   "only-article": [
     "article-id"
   ],
-  "only-login": [],
-  "only-error": [],
-  "only-store": [],
   "only-chat": [],
-  "only-stream": [],
+  "only-error": [],
+  "only-feed": [],
   "only-home": [],
-  "only-register": [],
+  "only-login": [],
   "only-navbar": [],
-  "only-admin": []
+  "only-profile": [],
+  "only-register": [],
+  "only-store": [],
+  "only-stream": []
 };
 
 // src/core/libris.core.ts

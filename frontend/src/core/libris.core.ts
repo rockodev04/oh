@@ -4,7 +4,7 @@
 // errores legibles para humanos.
 // ============================================
 
-import { magicRegistry } from './registry'
+import { magicRegistry } from "./registry"
 
 // ── Mensajes de error legibles para humanos ──
 const errorMessages: Record<string, string> = {
