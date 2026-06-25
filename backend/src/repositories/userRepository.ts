@@ -19,7 +19,8 @@ export async function findUserByEmail(email: string): Promise<User | null> {
     SELECT id, username, email, password_hash, membership, role
     FROM users WHERE email_hash = ${emailHash}
   `
-  
+  if (!result.length) return null  
+
   return {
     id: result[0]?.id,
     username: result[0]?.username,

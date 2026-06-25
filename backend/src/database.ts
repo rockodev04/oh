@@ -5,7 +5,7 @@
 
 import postgres from "postgres"
 
-const DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://junkdog@localhost:5432/onlyhackers'
+const DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql:belmont2026//postgres@localhost:5432/onlyhackers'
 
 const sql = postgres(DATABASE_URL, {
   ssl: false
