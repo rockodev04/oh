@@ -19,9 +19,11 @@ export async function sendMessage(message: Message): Promise<Message> {
 export async function getMessagesByUserId(user_id: number): Promise<Message[]> {
   const result = await sql`
     SELECT m.id, m.sender_id, m.receiver_id, m.content, m.priority, m.created_at,
-           u.username AS sender_username
+           s.username AS sender_username,
+           r.username AS receiver_username
     FROM messages m
-    LEFT JOIN users u ON m.sender_id = u.id
+    LEFT JOIN users s ON m.sender_id = s.id
+    LEFT JOIN users r ON m.receiver_id = r.id
     WHERE m.sender_id = ${user_id} OR m.receiver_id = ${user_id}
     ORDER BY m.priority ASC, m.created_at ASC
   `

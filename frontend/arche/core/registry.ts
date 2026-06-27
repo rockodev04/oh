@@ -1,7 +1,3 @@
-// ============================================
-// MAGIC REGISTRY — Auto-generado por Nexus
-// No editar manualmente. Se regenera en cada build.
-// ============================================
 export const magicRegistry: Record<string, string[]> = {
   "only-feed": [],
   "only-profile": [],

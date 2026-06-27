@@ -102,7 +102,9 @@ class OnlyChat extends HTMLElement {
 
       messages.forEach((m: any) => {
         const otherId = m.sender_id === myId ? m.receiver_id : m.sender_id
-        const otherName = m.sender_id === myId ? `Usuario #${m.receiver_id}` : (m.sender_username ?? `Usuario #${m.sender_id}`)
+        const otherName = m.sender_id === myId
+          ? (m.receiver_username ?? `Usuario #${m.receiver_id}`)
+          : (m.sender_username ?? `Usuario #${m.sender_id}`)
         if (!conversations.has(otherId)) {
           conversations.set(otherId, { id: otherId, name: otherName, lastMessage: m.content })
         }
@@ -168,9 +170,11 @@ class OnlyChat extends HTMLElement {
 
     container.innerHTML = messages.map((m: any) => {
       const isOwn = m.sender_id === myId
+      const senderName = isOwn ? 'Tú' : (m.sender_username ?? `Usuario #${m.sender_id}`)
       return `
         <div class="message ${isOwn ? 'own' : ''}" role="article" data-id="${m.id}">
           <div class="message-bubble">
+            ${!isOwn ? `<span style="font-size:0.7rem; color:var(--accent); font-weight:700; display:block; margin-bottom:4px;">${senderName}</span>` : ''}
             ${m.content}
             ${isOwn ? `
               <div style="display:flex; gap:6px; margin-top:6px; justify-content:flex-end;">
