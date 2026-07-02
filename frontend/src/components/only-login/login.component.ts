@@ -4,7 +4,7 @@ class OnlyLogin extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <section class="auth-page fade-in" aria-label="Iniciar sesión">
-        <div class="auth-box">
+        <form class="auth-box">
           <div class="auth-logo">
             <h1>Only<span>Hackers</span></h1>
             <p class="auth-subtitle">Ingresa tus credenciales</p>
@@ -16,12 +16,12 @@ class OnlyLogin extends HTMLElement {
             <div class="form-group">
               <label class="form-label" for="login-email">Email</label>
               <input class="form-input" type="email" id="login-email"
-                placeholder="tu@email.com" autocomplete="email" required />
+                placeholder="tuemail@condominioreal.com" autocomplete="email" required />
             </div>
             <div class="form-group">
               <label class="form-label" for="login-password">Contraseña</label>
               <input class="form-input" type="password" id="login-password"
-                placeholder="••••••••" autocomplete="current-password" required />
+                placeholder="••••••••" autocomplete="current-password" minlength="8" required />
             </div>
             <button type="submit" class="btn btn-primary btn-full btn-lg">
               Iniciar sesión
@@ -32,7 +32,7 @@ class OnlyLogin extends HTMLElement {
             ¿No tienes cuenta?
             <a href="/register" data-link>Regístrate aquí</a>
           </div>
-        </div>
+        </form>
       </section>
     `
 
@@ -41,7 +41,8 @@ class OnlyLogin extends HTMLElement {
       const errorEl = this.querySelector('#login-error') as HTMLElement
       const submitBtn = this.querySelector('button[type="submit"]') as HTMLButtonElement
       const email = (this.querySelector('#login-email') as HTMLInputElement).value.trim()
-      const password = (this.querySelector('#login-password') as HTMLInputElement).value
+      const password = (this.querySelector('#login-password') as HTMLInputElement).value.trim()
+      const min_length = 8;
 
       errorEl.style.display = 'none'
       submitBtn.textContent = 'Ingresando...'
@@ -61,6 +62,12 @@ class OnlyLogin extends HTMLElement {
           userId: number,
           role: string,
           error?: string 
+        }
+
+        if(!password || password.length < min_length){
+          errorEl.textContent = data.error ?? 'Tu password no tiene los caracteres necesarios, por favor vuelve a intentarlo'
+          errorEl.style.display = 'block'
+          return
         }
 
         if (!res.ok) {
