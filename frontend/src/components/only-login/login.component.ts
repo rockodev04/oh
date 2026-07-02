@@ -43,6 +43,7 @@ class OnlyLogin extends HTMLElement {
       const email = (this.querySelector('#login-email') as HTMLInputElement).value.trim()
       const password = (this.querySelector('#login-password') as HTMLInputElement).value.trim()
       const min_length = 8;
+      const form = e.target as HTMLFormElement; 
 
       errorEl.style.display = 'none'
       submitBtn.textContent = 'Ingresando...'
@@ -65,7 +66,7 @@ class OnlyLogin extends HTMLElement {
         }
 
         if(!password || password.length < min_length){
-          errorEl.textContent = data.error ?? 'Tu password no tiene los caracteres necesarios, por favor vuelve a intentarlo'
+          errorEl.textContent = data.error ?? 'Tu password no tiene los caracteres necesarios, por favor vuelve a intentarlo.'
           errorEl.style.display = 'block'
           return
         }
@@ -89,6 +90,7 @@ class OnlyLogin extends HTMLElement {
       } finally {
         submitBtn.textContent = 'Iniciar sesión'
         submitBtn.disabled = false
+        form.rest()
       }
     })
   }

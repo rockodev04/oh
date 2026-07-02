@@ -51,7 +51,9 @@ class OnlyRegister extends HTMLElement {
 
       const username = (this.querySelector('#reg-username') as HTMLInputElement).value.trim()
       const email = (this.querySelector('#reg-email') as HTMLInputElement).value.trim()
-      const password = (this.querySelector('#reg-password') as HTMLInputElement).value
+      const password = (this.querySelector('#reg-password') as HTMLInputElement).value.trim()
+      const min_length = 8
+      const form = e.target as HTMLFormElement; 
 
       errorEl.style.display = 'none'
       successEl.style.display = 'none'
@@ -66,6 +68,12 @@ class OnlyRegister extends HTMLElement {
         })
 
         const data = await res.json()
+
+        if(!password || password.length < min_length){
+          errorEl.textContent = data.error ?? 'Tu password no tiene los caracteres necesarios, por favor vuelve a intentarlo.'
+          errorEl.style.display = 'block'
+          return
+        }
 
         if (!res.ok) {
           errorEl.textContent = data.error ?? 'Error al crear la cuenta'
@@ -83,6 +91,7 @@ class OnlyRegister extends HTMLElement {
       } finally {
         submitBtn.textContent = 'Crear cuenta'
         submitBtn.disabled = false
+        form.reset()
       }
     })
   }
